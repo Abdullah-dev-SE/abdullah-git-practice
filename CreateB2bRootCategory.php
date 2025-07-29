@@ -6,7 +6,6 @@ namespace Ooredoo\B2bCore\Setup\Patch\Data;
 use Magento\Framework\Setup\Patch\DataPatchInterface;
 use Magento\Framework\Setup\ModuleDataSetupInterface;
 use Magento\Catalog\Model\CategoryFactory;
-use Magento\Eav\Setup\EavSetupFactory;
 use Magento\Store\Model\Store;
 use Magento\Store\Model\WebsiteFactory;
 use Magento\Store\Model\GroupFactory;
@@ -20,7 +19,6 @@ class CreateB2bRootCategory implements DataPatchInterface
 {
     private ModuleDataSetupInterface $moduleDataSetup;
     private CategoryFactory $categoryFactory;
-    private EavSetupFactory $eavSetupFactory;
     private WebsiteFactory $websiteFactory;
     private GroupFactory $groupFactory;
     private StoreFactory $storeFactory;
@@ -32,7 +30,6 @@ class CreateB2bRootCategory implements DataPatchInterface
     public function __construct(
         ModuleDataSetupInterface $moduleDataSetup,
         CategoryFactory $categoryFactory,
-        EavSetupFactory $eavSetupFactory,
         WebsiteFactory $websiteFactory,
         GroupFactory $groupFactory,
         StoreFactory $storeFactory,
@@ -43,7 +40,6 @@ class CreateB2bRootCategory implements DataPatchInterface
     ) {
         $this->moduleDataSetup = $moduleDataSetup;
         $this->categoryFactory = $categoryFactory;
-        $this->eavSetupFactory = $eavSetupFactory;
         $this->websiteFactory = $websiteFactory;
         $this->groupFactory = $groupFactory;
         $this->storeFactory = $storeFactory;
@@ -60,12 +56,21 @@ class CreateB2bRootCategory implements DataPatchInterface
         try {
             // Step 1: Create Root Category FIRST
             $rootCategory = $this->createRootCategory();
+            if (!$rootCategory || !$rootCategory->getId()) {
+                throw new \Exception('Failed to create or load root category');
+            }
             
             // Step 2: Create Website
             $website = $this->createWebsite();
+            if (!$website || !$website->getId()) {
+                throw new \Exception('Failed to create or load website');
+            }
             
             // Step 3: Create Store Group
             $storeGroup = $this->createStoreGroup($website->getId(), $rootCategory->getId());
+            if (!$storeGroup || !$storeGroup->getId()) {
+                throw new \Exception('Failed to create or load store group');
+            }
             
             // Step 4: Create Stores
             $this->createStores($website->getId(), $storeGroup->getId());
@@ -109,16 +114,25 @@ class CreateB2bRootCategory implements DataPatchInterface
             return $collection->getFirstItem();
         }
 
+        // Set basic category data
         $rootCategory->setName('B2B Root Category')
-            ->setIsActive(true)
+            ->setIsActive(1) // Changed from true to 1
             ->setParentId(1) // Default root category ID
-            ->setIncludeInMenu(true)
+            ->setIncludeInMenu(1) // Changed from true to 1
             ->setLevel(1)
             ->setPosition(2)
-            ->setAvailableSortBy(['position', 'name'])
+            ->setAvailableSortBy('position,name') // Changed from array to string
             ->setDefaultSortBy('position')
-            ->setStoreId(Store::DEFAULT_STORE_ID);
+            ->setDisplayMode('PRODUCTS')
+            ->setIsAnchor(0)
+            ->setStoreId(0); // Changed from Store::DEFAULT_STORE_ID to 0
 
+        // Save the category first to get the ID
+        $this->categoryResource->save($rootCategory);
+        
+        // Update the path after getting the ID
+        $path = '1/' . $rootCategory->getId();
+        $rootCategory->setPath($path);
         $this->categoryResource->save($rootCategory);
         
         return $rootCategory;
@@ -139,8 +153,8 @@ class CreateB2bRootCategory implements DataPatchInterface
 
         $storeGroup->setName('B2B Store')
             ->setWebsiteId($websiteId)
-            ->setRootCategoryId($rootCategoryId)
-            ->setDefaultStoreId(0); // Will be updated after creating stores
+            ->setRootCategoryId($rootCategoryId);
+            // Removed setDefaultStoreId(0) - will be set later when stores are created
 
         $this->groupResource->save($storeGroup);
         
@@ -181,11 +195,11 @@ class CreateB2bRootCategory implements DataPatchInterface
                     ->setSortOrder($storeData['sort_order']);
                 
                 $this->storeResource->save($store);
-                
-                // Set first store as default for the group
-                if ($defaultStoreId === null) {
-                    $defaultStoreId = $store->getId();
-                }
+            }
+            
+            // Set first store as default for the group (whether new or existing)
+            if ($defaultStoreId === null) {
+                $defaultStoreId = $store->getId();
             }
         }
 
