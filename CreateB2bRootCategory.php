@@ -58,11 +58,11 @@ class CreateB2bRootCategory implements DataPatchInterface
         $this->moduleDataSetup->getConnection()->startSetup();
 
         try {
-            // Step 1: Create Website
-            $website = $this->createWebsite();
-            
-            // Step 2: Create Root Category
+            // Step 1: Create Root Category FIRST
             $rootCategory = $this->createRootCategory();
+            
+            // Step 2: Create Website
+            $website = $this->createWebsite();
             
             // Step 3: Create Store Group
             $storeGroup = $this->createStoreGroup($website->getId(), $rootCategory->getId());
