@@ -90,7 +90,7 @@ class CreateB2bRootCategory implements DataPatchInterface
                 ->setIsDefault(0)
                 ->setSortOrder(1);
             
-            $this->websiteResource->save($website);
+            $website->save();
         }
         
         return $website;
@@ -110,16 +110,17 @@ class CreateB2bRootCategory implements DataPatchInterface
         }
 
         $rootCategory->setName('B2B Root Category')
-            ->setIsActive(true)
+            ->setIsActive(1)
             ->setParentId(1) // Default root category ID
-            ->setIncludeInMenu(true)
+            ->setIncludeInMenu(1)
+            ->setPath('1') // Set path properly
             ->setLevel(1)
             ->setPosition(2)
-            ->setAvailableSortBy(['position', 'name'])
+            ->setAvailableSortBy('position,name')
             ->setDefaultSortBy('position')
-            ->setStoreId(Store::DEFAULT_STORE_ID);
+            ->setStoreId(0); // Use 0 for admin store
 
-        $this->categoryResource->save($rootCategory);
+        $rootCategory->save(); // Use model save instead of resource
         
         return $rootCategory;
     }
@@ -138,11 +139,11 @@ class CreateB2bRootCategory implements DataPatchInterface
         }
 
         $storeGroup->setName('B2B Store')
-            ->setWebsiteId($websiteId)
-            ->setRootCategoryId($rootCategoryId)
+            ->setWebsiteId((int)$websiteId)
+            ->setRootCategoryId((int)$rootCategoryId)
             ->setDefaultStoreId(0); // Will be updated after creating stores
 
-        $this->groupResource->save($storeGroup);
+        $storeGroup->save();
         
         return $storeGroup;
     }
@@ -175,12 +176,12 @@ class CreateB2bRootCategory implements DataPatchInterface
             if (!$store->getId()) {
                 $store->setCode($storeData['code'])
                     ->setName($storeData['name'])
-                    ->setWebsiteId($websiteId)
-                    ->setGroupId($storeGroupId)
-                    ->setIsActive($storeData['is_active'])
-                    ->setSortOrder($storeData['sort_order']);
+                    ->setWebsiteId((int)$websiteId)
+                    ->setGroupId((int)$storeGroupId)
+                    ->setIsActive((int)$storeData['is_active'])
+                    ->setSortOrder((int)$storeData['sort_order']);
                 
-                $this->storeResource->save($store);
+                $store->save();
                 
                 // Set first store as default for the group
                 if ($defaultStoreId === null) {
@@ -192,9 +193,9 @@ class CreateB2bRootCategory implements DataPatchInterface
         // Update store group with default store
         if ($defaultStoreId) {
             $storeGroup = $this->groupFactory->create();
-            $this->groupResource->load($storeGroup, $storeGroupId);
-            $storeGroup->setDefaultStoreId($defaultStoreId);
-            $this->groupResource->save($storeGroup);
+            $storeGroup->load($storeGroupId);
+            $storeGroup->setDefaultStoreId((int)$defaultStoreId);
+            $storeGroup->save();
         }
     }
 
